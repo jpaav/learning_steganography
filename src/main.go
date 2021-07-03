@@ -12,14 +12,14 @@ func main() {
 	}
 
 	switch os.Args[1] {
-	case "basic":
-		steg.BasicCli()
+	case "encode":
+		steg.EncodeCli()
 	default:
 		printHelpText()
 	}
 }
 
 func printHelpText() {
-	log.Print("Pass a valid option into the -program flag to use this tool. Valid options are as follows\n\tbasic\n\t\tThe most basic tool to hide data in a file.\n\tlist\n\t\tShows the output you are seeing now.")
+	log.Print("Pass a valid option into the -program flag to use this tool. Valid options are as follows\n\tencode\n\t\tEncode hidden data in another file.\n\tlist\n\t\tShows the output you are seeing now.")
 	os.Exit(1)
 }

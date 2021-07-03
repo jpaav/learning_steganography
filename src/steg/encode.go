@@ -5,7 +5,6 @@ import (
 	"flag"
 	"image"
 	"image/color"
-	_ "image/jpeg"
 	"image/png"
 	"io"
 	"learning_steganography/src/steg/secrets"
@@ -13,18 +12,15 @@ import (
 	"os"
 )
 
-const (
-	MaxInputFileSize   = 64000000
-	OutputChannelDepth = 8
-)
+const MaxInputFileSize = 64000000
 
-type BasicProgramOptions struct {
+type EncodeProgramOptions struct {
 	InputFilePath  *string
 	OutputFilePath *string
 	SecretFilePath *string
 }
 
-func (o BasicProgramOptions) Validate() error {
+func (o EncodeProgramOptions) Validate() error {
 	if o.InputFilePath == nil {
 		return errors.New("input file must not be nil")
 	}
@@ -48,14 +44,14 @@ func (o BasicProgramOptions) Validate() error {
 	return nil
 }
 
-func BasicCli() {
-	basicProgram := flag.NewFlagSet("basic", flag.ExitOnError)
-	options := &BasicProgramOptions{}
-	options.InputFilePath = basicProgram.String("input", "", "the input file to read")
-	options.OutputFilePath = basicProgram.String("output", "", "the output file to write")
-	options.SecretFilePath = basicProgram.String("secret", "", "the secret file to hide")
+func EncodeCli() {
+	encodeFlagSet := flag.NewFlagSet("encode", flag.ExitOnError)
+	options := &EncodeProgramOptions{}
+	options.InputFilePath = encodeFlagSet.String("input", "", "the input file to read")
+	options.OutputFilePath = encodeFlagSet.String("output", "", "the output file to write")
+	options.SecretFilePath = encodeFlagSet.String("secret", "", "the secret file to hide")
 
-	err := basicProgram.Parse(os.Args[2:])
+	err := encodeFlagSet.Parse(os.Args[2:])
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -63,10 +59,11 @@ func BasicCli() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	Basic(options)
+	Encode(options)
 }
 
-func Basic(options *BasicProgramOptions) {
+func Encode(options *EncodeProgramOptions) {
+	// Check input file
 	inputStats, err := os.Stat(*options.InputFilePath)
 	if err != nil {
 		log.Fatal(err)
@@ -77,32 +74,41 @@ func Basic(options *BasicProgramOptions) {
 	if inputStats.Size() > MaxInputFileSize {
 		log.Fatal(errors.New("input must not exceed 64 MB"))
 	}
-
+	// Open input file
 	inputFile, err := os.Open(*options.InputFilePath)
 	if inputFile != nil {
 		defer inputFile.Close()
 	}
-
+	// Open output file
 	outputFile, err := os.OpenFile(*options.OutputFilePath, os.O_WRONLY|os.O_CREATE, 0600)
 	if outputFile != nil {
 		defer outputFile.Close()
 	}
-
+	// Check secret file
+	secretStats, err := os.Stat(*options.SecretFilePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if !secretStats.Mode().IsRegular() {
+		log.Fatal(errors.New("secret must be a regular file"))
+	}
+	log.Printf("secret file size:\t%d bytes", secretStats.Size())
+	// Open secret file
 	secretFile, err := os.Open(*options.SecretFilePath)
 	if secretFile != nil {
 		defer secretFile.Close()
 	}
-
-	basicPng(inputFile, outputFile, secretFile)
+	// Encode!
+	encodePng(inputFile, outputFile, secretFile)
 }
 
-func basicPng(in io.Reader, out io.Writer, secret io.Reader) {
+func encodePng(in io.Reader, out io.Writer, secret io.Reader) {
 	inImg, err := png.Decode(in)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	outImg := basicEncodeCommon(inImg, secret)
+	outImg := encodeCommon(inImg, secret)
 
 	err = png.Encode(out, outImg)
 	if err != nil {
@@ -110,7 +116,7 @@ func basicPng(in io.Reader, out io.Writer, secret io.Reader) {
 	}
 }
 
-func basicEncodeCommon(inImg image.Image, secret io.Reader) image.Image {
+func encodeCommon(inImg image.Image, secret io.Reader) image.Image {
 	var rIn, gIn, bIn, aIn uint32
 	var rOut, gOut, bOut, aOut uint8
 	var err error
@@ -121,6 +127,11 @@ func basicEncodeCommon(inImg image.Image, secret io.Reader) image.Image {
 	rect := inImg.Bounds()
 	outImg := image.NewNRGBA(rect)
 	hasData := true
+	index := 0
+	pixelCount := rect.Dx() * rect.Dy()
+	// We can store 6 bits per pixel, and there are 8 bits per byte
+	log.Printf("max encodable size:\t%d bytes", (pixelCount*6)/8)
+	log.Print("Encoding...")
 	for x := rect.Min.X; x < rect.Max.X; x++ {
 		for y := rect.Min.Y; y < rect.Max.Y; y++ {
 			// We can skip reading if we're already out of data
@@ -141,10 +152,11 @@ func basicEncodeCommon(inImg image.Image, secret io.Reader) image.Image {
 			if hasData {
 				rOut = (rOut & secrets.NegatedCrumbBitMask) | secretCrumb
 			}
-			//log.Printf("r: %d\tg: %d\tb: %d\t, a: %d", rOut, gOut, bOut, aOut)
 			outImg.Set(x, y, color.NRGBA{R: rOut, G: gOut, B: bOut, A: aOut})
+			index += 1
 		}
 	}
+	log.Print("Done!")
 	if hasData {
 		log.Print("WARNING: Secret file was too big to encode in image")
 	}
