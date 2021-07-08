@@ -108,7 +108,7 @@ func encodePng(in io.Reader, out io.Writer, secret io.Reader) {
 		log.Fatal(err)
 	}
 
-	outImg := encodeCommon(inImg, secret)
+	outImg := encodeImgCommon(inImg, secret)
 
 	err = png.Encode(out, outImg)
 	if err != nil {
@@ -116,7 +116,7 @@ func encodePng(in io.Reader, out io.Writer, secret io.Reader) {
 	}
 }
 
-func encodeCommon(inImg image.Image, secret io.Reader) image.Image {
+func encodeImgCommon(inImg image.Image, secret io.Reader) image.Image {
 	var rIn, gIn, bIn, aIn uint32
 	var rOut, gOut, bOut, aOut uint8
 	// Buffer size is 3 so we never run out of data while writing a pixel
@@ -132,7 +132,7 @@ func encodeCommon(inImg image.Image, secret io.Reader) image.Image {
 		for y := rect.Min.Y; y < rect.Max.Y; y++ {
 			// Get the current pixel
 			rIn, gIn, bIn, aIn = inImg.At(x, y).RGBA()
-			// Convert each component from a 32-bit to 8-bit
+			// Convert each component from a 16-bit to 8-bit
 			rOut = uint8(rIn >> 8)
 			gOut = uint8(gIn >> 8)
 			bOut = uint8(bIn >> 8)
